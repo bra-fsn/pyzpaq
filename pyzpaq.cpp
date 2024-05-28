@@ -40,14 +40,32 @@ private:
     std::vector<uint8_t>_data;
 };
 
-static PyObject* compress(PyObject *self, PyObject *args)
+static PyObject* compress(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     Py_buffer input_buffer;
-    if(!PyArg_ParseTuple(args, "s*", &input_buffer))
+    int compression_level = 5;  // Default compression level
+    static char *kwlist[] = {"input", "level", NULL};
+
+    // Parse the input arguments and keyword arguments: a byte string and an optional integer
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s*|i", kwlist, &input_buffer, &compression_level))
         return NULL;
+
+    // Check if compression level is within valid range
+    if (compression_level < 1 || compression_level > 5) {
+        PyErr_SetString(PyExc_ValueError, "Compression level must be between 1 and 5");
+        return NULL;
+    }
+
     In in((const uint8_t*)input_buffer.buf, input_buffer.len);
     Out out;
-    libzpaq::compress(&in, &out, "5");
+
+    // Convert the integer compression level to a string
+    std::string level_str = std::to_string(compression_level);
+
+    // Compress using the specified compression level
+    libzpaq::compress(&in, &out, level_str.c_str());
+
+    // Return the compressed data as a Python bytes object
     return PyBytes_FromStringAndSize((const char*)out.data().data(), out.data().size());
 }
 
@@ -63,7 +81,7 @@ static PyObject* decompress(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef zpaq_methods[] = {
-    {"compress", compress, METH_VARARGS, ""},
+    {"compress", (PyCFunction)compress, METH_VARARGS | METH_KEYWORDS, "Compress data with an optional compression level"},
     {"decompress", decompress, METH_VARARGS, ""},
     {NULL, NULL, 0, NULL},
 };
